@@ -1,17 +1,20 @@
 package main
 
 import (
-	"Saham-BE/authentication"
-	"Saham-BE/handler"
 	"log"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"Saham-BE/authentication"
+	"Saham-BE/handler"
+	"Saham-BE/profile"
 )
 
 func main() {
-	dsn := "host=localhost user=postgres password=alvin dbname=saham-db port=5432 sslmode=disable TimeZone=Asia/Bangkok"
+	// gin.SetMode(gin.ReleaseMode)
+	dsn := "host=localhost user=postgres password=alvin dbname=arisan-db port=5432 sslmode=disable TimeZone=Asia/Bangkok"
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatal("DB Connection Error")
@@ -23,10 +26,15 @@ func main() {
 	authService := authentication.NewService(authRepo)
 	authHandler := handler.NewHandler(authService)
 
+	profileRepo := profile.NewRepository(db)
+	profileService := profile.NewService(profileRepo)
+	profileHandler := handler.ProfileHandler(profileService)
+	// router.use(handleErrors)
 	router := gin.Default()
 
-	v1 := router.Group("/v1")
+	// router.SetTrustedProxies([]string{"127.0.0.1", "localhost:8080"})
 
+	v1 := router.Group("/v1")
 	v1.POST("/user/login", authHandler.LoginHandler)
 	v1.POST("/user/create", authHandler.RegisterHandler)
 	v1.POST("/user/forget-password", authHandler.ForgetPasswordHandler)
@@ -38,5 +46,6 @@ func main() {
 	v1.POST("/admin/update-user", authHandler.UpdateHandler)
 	v1.POST("/admin/delete-user", authHandler.DeleteHandler)
 
-	router.Run()
+	v1.GET("/admin/get-bank-list", profileHandler.GetBankList)
+	router.Run(":8080")
 }

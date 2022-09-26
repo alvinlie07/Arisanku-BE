@@ -30,6 +30,7 @@ func (r *repository) Login(Email string, Password string) (User, error) {
 	var user User
 
 	err := r.db.Debug().Where("email = ? AND password = ?", Email, Password).First(&user).Error
+	// errors.Is
 
 	return user, err
 }

@@ -4,13 +4,20 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-
-	"Saham-BE/authentication"
-	"Saham-BE/constant"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"gopkg.in/dgrijalva/jwt-go.v3"
+
+	"Saham-BE/authentication"
+	"Saham-BE/config"
+	"Saham-BE/constant"
 )
+
+var secretCode = []byte("AYANK EPI")
+
+const tokenExpired = time.Hour * 2
 
 type authenticationHandler struct {
 	authenticationService authentication.Service
@@ -29,11 +36,34 @@ func ConvertGetResponse(user authentication.User) authentication.AuthenticationR
 	}
 }
 
+func GenerateToken(email string) (string, error) {
+	// c := config.JwtClaim{
+	// 	Email: email,
+	// 	jwt.StandardClaims{
+
+	// 	},
+	// }
+	c := config.JwtClaim{
+		Email: email, // Custom field
+		// Expired:
+		StandardClaims: jwt.StandardClaims{
+			ExpiresAt: time.Now().Add(tokenExpired).Unix(), // Expiration time
+			Issuer:    "my-project",
+			Audience:  "kami", // Issuer
+		},
+	}
+	// Creates a signed object using the specified signing method
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, c)
+	// Use the specified secret signature and obtain the complete encoded string token
+	return token.SignedString(secretCode)
+}
+
 func (h *authenticationHandler) LoginHandler(c *gin.Context) {
 	var loginParams authentication.LoginParameter
 	err := c.ShouldBindJSON(&loginParams)
 
 	if err != nil {
+
 		errorMessages := []string{}
 		for _, e := range err.(validator.ValidationErrors) {
 			errorMessage := fmt.Sprintf("Error on field %s, condition: %s", e.Field(), e.ActualTag())
@@ -52,9 +82,19 @@ func (h *authenticationHandler) LoginHandler(c *gin.Context) {
 
 	user, err := h.authenticationService.Login(loginParams)
 	if err != nil {
+		// errorToPrint := c.Error(err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code":    constant.WRONG_COMBINATION_EMAIL_PASSWORD,
-			"message": "Username atau password salah",
+			"message": "Username atau password salah/tidak ditemukan",
+		})
+		return
+	}
+	jwt, err := GenerateToken(loginParams.Email)
+	if err != nil {
+		errorToPrint := c.Error(err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code":    constant.JWT_ERROR,
+			"message": errorToPrint,
 		})
 		return
 	}
@@ -62,7 +102,10 @@ func (h *authenticationHandler) LoginHandler(c *gin.Context) {
 		"code":    constant.SUCCESS_LOGIN,
 		"message": "Success login",
 		"data":    user,
+
+		"token": jwt,
 	})
+
 	return
 }
 
